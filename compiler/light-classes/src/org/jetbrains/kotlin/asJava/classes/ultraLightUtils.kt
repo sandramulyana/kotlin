@@ -28,10 +28,10 @@ import org.jetbrains.kotlin.asJava.LightClassGenerationSupport
 import org.jetbrains.kotlin.asJava.UltraLightClassModifierExtension
 import org.jetbrains.kotlin.asJava.builder.LightMemberOriginForDeclaration
 import org.jetbrains.kotlin.asJava.elements.KotlinLightTypeParameterListBuilder
+import org.jetbrains.kotlin.asJava.elements.KtLightAnnotationForSourceEntry
 import org.jetbrains.kotlin.asJava.elements.KtLightMethod
 import org.jetbrains.kotlin.asJava.elements.psiType
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
-import org.jetbrains.kotlin.builtins.StandardNames
 import org.jetbrains.kotlin.builtins.jvm.JavaToKotlinClassMap
 import org.jetbrains.kotlin.codegen.AsmUtil
 import org.jetbrains.kotlin.codegen.JvmCodegenUtil
@@ -41,6 +41,7 @@ import org.jetbrains.kotlin.codegen.signature.JvmSignatureWriter
 import org.jetbrains.kotlin.codegen.state.KotlinTypeMapper
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.annotations.AnnotationDescriptor
+import org.jetbrains.kotlin.descriptors.annotations.AnnotationUseSiteTarget
 import org.jetbrains.kotlin.load.kotlin.TypeMappingMode
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.FqName
@@ -327,7 +328,7 @@ internal fun KtModifierListOwner.isHiddenByDeprecation(support: KtUltraLightSupp
         annotation.looksLikeDeprecated()
     }
     if (annotations.isNotEmpty()) { // some candidates found
-        val deprecated = support.findAnnotation(this, StandardNames.FqNames.deprecated)?.second
+        val deprecated = support.findAnnotation(this, KotlinBuiltIns.FQ_NAMES.deprecated)?.second
         return (deprecated?.argumentValue("level") as? EnumValue)?.enumEntryName?.asString() == "HIDDEN"
     } else {
         return false
@@ -372,7 +373,7 @@ internal fun KtModifierListOwner.isDeprecated(support: KtUltraLightSupport? = nu
     val modifierList = this.modifierList ?: return false
     if (modifierList.annotationEntries.isEmpty()) return false
 
-    val deprecatedFqName = StandardNames.FqNames.deprecated
+    val deprecatedFqName = KotlinBuiltIns.FQ_NAMES.deprecated
     val deprecatedName = deprecatedFqName.shortName().asString()
 
     for (annotationEntry in modifierList.annotationEntries) {
@@ -385,7 +386,7 @@ internal fun KtModifierListOwner.isDeprecated(support: KtUltraLightSupport? = nu
         if (fqName.asString() == deprecatedName) return true
     }
 
-    return support?.findAnnotation(this, StandardNames.FqNames.deprecated) !== null
+    return support?.findAnnotation(this, KotlinBuiltIns.FQ_NAMES.deprecated) !== null
 }
 
 private fun toQualifiedName(userType: KtUserType): FqName? {
@@ -481,13 +482,10 @@ inline fun <T> runReadAction(crossinline runnable: () -> T): T {
     return ApplicationManager.getApplication().runReadAction(Computable { runnable() })
 }
 
-@Suppress("NOTHING_TO_INLINE")
 inline fun KtClassOrObject.safeIsLocal(): Boolean = runReadAction { this.isLocal }
 
-@Suppress("NOTHING_TO_INLINE")
 inline fun KtFile.safeIsScript() = runReadAction { this.isScript() }
 
-@Suppress("NOTHING_TO_INLINE")
 inline fun KtFile.safeScript() = runReadAction { this.script }
 
 internal fun KtUltraLightSupport.findAnnotation(owner: KtAnnotated, fqName: FqName): Pair<KtAnnotationEntry, AnnotationDescriptor>? {
@@ -518,3 +516,18 @@ internal fun KtUltraLightSupport.findAnnotation(owner: KtAnnotated, fqName: FqNa
 
     return null
 }
+
+internal fun List<KtAnnotationEntry>.toLightAnnotations(
+    parent: PsiElement,
+    site: AnnotationUseSiteTarget
+): List<KtLightAnnotationForSourceEntry> =
+    filter {
+        it.useSiteTarget?.getAnnotationUseSiteTarget() == site
+    }.map { entry ->
+        KtLightAnnotationForSourceEntry(
+            lazyQualifiedName = { entry.analyzeAnnotation()?.fqName?.asString() },
+            kotlinOrigin = entry,
+            parent = parent,
+            lazyClsDelegate = null
+        )
+    }
