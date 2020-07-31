@@ -235,7 +235,8 @@ fun KotlinType.cleanFromAnonymousTypes(): KotlinType? {
 
 fun KtUltraLightClass.createGeneratedMethodFromDescriptor(
     descriptor: FunctionDescriptor,
-    declarationForOrigin: KtDeclaration? = null,
+    declarationOriginKindForOrigin: JvmDeclarationOriginKind = JvmDeclarationOriginKind.OTHER,
+    declarationForOrigin: KtDeclaration? = null
 ): KtLightMethod {
 
     val kotlinOrigin =
@@ -243,7 +244,7 @@ fun KtUltraLightClass.createGeneratedMethodFromDescriptor(
             ?: DescriptorToSourceUtils.descriptorToDeclaration(descriptor) as? KtDeclaration
             ?: kotlinOrigin
 
-    val lightMemberOrigin = LightMemberOriginForDeclaration(kotlinOrigin, JvmDeclarationOriginKind.OTHER)
+    val lightMemberOrigin = LightMemberOriginForDeclaration(kotlinOrigin, declarationOriginKindForOrigin)
 
     return KtUltraLightMethodForDescriptor(descriptor, lightMethod(descriptor), lightMemberOrigin, support, this)
 }
