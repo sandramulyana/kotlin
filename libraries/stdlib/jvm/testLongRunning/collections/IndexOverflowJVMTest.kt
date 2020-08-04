@@ -146,7 +146,7 @@ class IndexOverflowJVMTest {
 
     @Test
     fun scanReduceIndexedOverflow() {
-        assertIndexOverflow { maxIndexSequence.scanReduceIndexed { index, _, s -> checkIndexPositive(index); s }.forEach { } }
+        assertIndexOverflow { maxIndexSequence.runningReduceIndexed { index, _, s -> checkIndexPositive(index); s }.forEach { } }
     }
 
 
