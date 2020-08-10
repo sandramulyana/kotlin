@@ -69,6 +69,9 @@ class DebuggerConnection(
 
     private fun initializeCoroutineAgent(params: JavaParameters, it: String?) {
         params.vmParametersList?.add("-javaagent:$it")
+        // Fix for NoClassDefFoundError: kotlin/collections/AbstractMutableMap via CommandLineWrapper.
+        if (params.isClasspathFile)
+            params.classPath.addFirst(it)
     }
 
     private fun connect() {
