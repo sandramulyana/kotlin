@@ -12,7 +12,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.compiled.ClassFileDecompilers
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.idea.decompiler.KotlinDecompiledFileViewProvider
-import org.jetbrains.kotlin.idea.decompiler.KtDecompiledFile
+import org.jetbrains.kotlin.idea.decompiler.MetadataKtDecompiledFile
 import org.jetbrains.kotlin.idea.decompiler.textBuilder.DecompiledText
 import org.jetbrains.kotlin.idea.decompiler.textBuilder.buildDecompiledText
 import org.jetbrains.kotlin.idea.decompiler.textBuilder.defaultDecompilerRendererOptions
@@ -54,7 +54,7 @@ abstract class KotlinMetadataDecompiler<out V : BinaryVersion>(
             if (readFileSafely(provider.virtualFile) == null) {
                 null
             } else {
-                KtDecompiledFile(provider, this::buildDecompiledText)
+                MetadataKtDecompiledFile(provider, this::buildDecompiledText)
             }
         }
     }
