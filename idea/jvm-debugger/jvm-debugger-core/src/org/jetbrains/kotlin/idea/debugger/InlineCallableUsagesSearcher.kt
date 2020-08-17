@@ -21,6 +21,8 @@ import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.idea.debugger.DebuggerClassNameProvider.Companion.getRelevantElement
 import org.jetbrains.kotlin.idea.debugger.evaluate.KotlinDebuggerCaches
 import org.jetbrains.kotlin.idea.debugger.evaluate.KotlinDebuggerCaches.ComputedClassNames
+import org.jetbrains.kotlin.idea.search.ideaExtensions.KotlinReferencesSearchOptions
+import org.jetbrains.kotlin.idea.search.ideaExtensions.KotlinReferencesSearchParameters
 import org.jetbrains.kotlin.idea.search.usagesSearch.isImportUsage
 import org.jetbrains.kotlin.idea.stubindex.KotlinSourceFilterScope
 import org.jetbrains.kotlin.idea.util.ProjectRootsUtil
@@ -45,7 +47,14 @@ class InlineCallableUsagesSearcher(val project: Project, val searchScope: Global
             val declarationName = runReadAction { declaration.name ?: "<error>" }
 
             val task = Runnable {
-                for (reference in ReferencesSearch.search(declaration, getScopeForInlineDeclarationUsages(declaration))) {
+                val scope = getScopeForInlineDeclarationUsages(declaration)
+                var kotlinReferenceSearchParam = KotlinReferencesSearchParameters(declaration, searchScope, kotlinOptions = KotlinReferencesSearchOptions())
+                var kotlinReferenceSearchParam1 = KotlinReferencesSearchParameters(declaration, searchScope, kotlinOptions = KotlinReferencesSearchOptions(acceptCallableOverrides = true))
+                println("First search started")
+                val refsearch = ReferencesSearch.search(kotlinReferenceSearchParam).findAll()
+                println("Second search started")
+                val refsearch1 = ReferencesSearch.search(kotlinReferenceSearchParam1).findAll()
+                for (reference in refsearch) {
                     processReference(declaration, reference, alreadyVisited)?.let { searchResult += it }
                 }
             }
