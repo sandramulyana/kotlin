@@ -25,6 +25,8 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.asJava.classes.KtLightClass
 import org.jetbrains.kotlin.asJava.elements.*
 import org.jetbrains.kotlin.asJava.finder.JavaElementFinder
+import org.jetbrains.kotlin.fileClasses.JvmMultifileClassPartInfo
+import org.jetbrains.kotlin.fileClasses.fileClassInfo
 import org.jetbrains.kotlin.fileClasses.javaFileFacadeFqName
 import org.jetbrains.kotlin.load.java.JvmAbi
 import org.jetbrains.kotlin.psi.*
@@ -128,10 +130,11 @@ object LightClassUtil {
         return getPsiMethodWrappers(declaration).firstOrNull()
     }
 
-    private fun getPsiMethodWrappers(declaration: KtDeclaration): Sequence<KtLightMethod> =
-        getWrappingClasses(declaration).flatMap { it.methods.asSequence() }
+    private fun getPsiMethodWrappers(declaration: KtDeclaration): Sequence<KtLightMethod> {
+        val methods = getWrappingClasses(declaration).flatMap { it.methods.asSequence() }
             .filterIsInstance<KtLightMethod>()
-            .filter { it.kotlinOrigin === declaration || it.navigationElement === declaration }
+        return methods.filter { it.kotlinOrigin === declaration }
+    }
 
     private fun getWrappingClass(declaration: KtDeclaration): PsiClass? {
         if (declaration is KtParameter) {
