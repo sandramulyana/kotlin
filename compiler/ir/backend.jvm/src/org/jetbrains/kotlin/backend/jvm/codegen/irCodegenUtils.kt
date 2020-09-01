@@ -19,7 +19,7 @@ import org.jetbrains.kotlin.codegen.signature.BothSignatureWriter
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptorWithSource
 import org.jetbrains.kotlin.descriptors.Modality
-import org.jetbrains.kotlin.descriptors.Visibilities
+import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.expressions.IrGetEnumValue
 import org.jetbrains.kotlin.ir.expressions.IrMemberAccessExpression
@@ -28,7 +28,7 @@ import org.jetbrains.kotlin.ir.symbols.IrSymbol
 import org.jetbrains.kotlin.ir.types.IrSimpleType
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.util.*
-import org.jetbrains.kotlin.load.java.JavaVisibilities
+import org.jetbrains.kotlin.load.java.JavaDescriptorVisibilities
 import org.jetbrains.kotlin.load.java.JvmAbi
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.resolve.checkers.ExpectedActualDeclarationChecker
@@ -132,7 +132,7 @@ fun IrClass.calculateInnerClassAccessFlags(context: JvmBackendContext): Int {
     }
     val visibility = when {
         isLambda -> getVisibilityAccessFlagForAnonymous()
-        visibility === Visibilities.LOCAL -> Opcodes.ACC_PUBLIC
+        visibility === DescriptorVisibilities.LOCAL -> Opcodes.ACC_PUBLIC
         else -> getVisibilityAccessFlag()
     }
     return visibility or
@@ -162,15 +162,15 @@ fun IrDeclarationWithVisibility.getVisibilityAccessFlag(kind: OwnerKind? = null)
         return it
     }
     return when (visibility) {
-        Visibilities.PRIVATE -> Opcodes.ACC_PRIVATE
-        Visibilities.PRIVATE_TO_THIS -> Opcodes.ACC_PRIVATE
-        Visibilities.PROTECTED -> Opcodes.ACC_PROTECTED
-        JavaVisibilities.PROTECTED_STATIC_VISIBILITY -> Opcodes.ACC_PROTECTED
-        JavaVisibilities.PROTECTED_AND_PACKAGE -> Opcodes.ACC_PROTECTED
-        Visibilities.PUBLIC -> Opcodes.ACC_PUBLIC
-        Visibilities.INTERNAL -> Opcodes.ACC_PUBLIC
-        Visibilities.LOCAL -> NO_FLAG_LOCAL
-        JavaVisibilities.PACKAGE_VISIBILITY -> AsmUtil.NO_FLAG_PACKAGE_PRIVATE
+        DescriptorVisibilities.PRIVATE -> Opcodes.ACC_PRIVATE
+        DescriptorVisibilities.PRIVATE_TO_THIS -> Opcodes.ACC_PRIVATE
+        DescriptorVisibilities.PROTECTED -> Opcodes.ACC_PROTECTED
+        JavaDescriptorVisibilities.PROTECTED_STATIC_VISIBILITY -> Opcodes.ACC_PROTECTED
+        JavaDescriptorVisibilities.PROTECTED_AND_PACKAGE -> Opcodes.ACC_PROTECTED
+        DescriptorVisibilities.PUBLIC -> Opcodes.ACC_PUBLIC
+        DescriptorVisibilities.INTERNAL -> Opcodes.ACC_PUBLIC
+        DescriptorVisibilities.LOCAL -> NO_FLAG_LOCAL
+        JavaDescriptorVisibilities.PACKAGE_VISIBILITY -> AsmUtil.NO_FLAG_PACKAGE_PRIVATE
         else -> throw IllegalStateException("$visibility is not a valid visibility in backend for ${ir2string(this)}")
     }
 }
@@ -179,7 +179,7 @@ private fun IrDeclarationWithVisibility.specialCaseVisibility(kind: OwnerKind?):
 //    if (JvmCodegenUtil.isNonIntrinsicPrivateCompanionObjectInInterface(memberDescriptor)) {
 //        return ACC_PUBLIC
 //    }
-    if (this is IrClass && Visibilities.isPrivate(visibility) && isCompanion && hasInterfaceParent()) {
+    if (this is IrClass && DescriptorVisibilities.isPrivate(visibility) && isCompanion && hasInterfaceParent()) {
         // TODO: non-intrinsic
         return Opcodes.ACC_PUBLIC
     }
@@ -199,7 +199,7 @@ private fun IrDeclarationWithVisibility.specialCaseVisibility(kind: OwnerKind?):
     }
 
 //    if (memberVisibility === Visibilities.LOCAL && memberDescriptor is CallableMemberDescriptor) {
-    if (visibility === Visibilities.LOCAL && this is IrFunction) {
+    if (visibility === DescriptorVisibilities.LOCAL && this is IrFunction) {
         return Opcodes.ACC_PUBLIC
     }
 
@@ -250,13 +250,13 @@ private fun IrDeclarationWithVisibility.specialCaseVisibility(kind: OwnerKind?):
 //            }
 //        }
 //    }
-    if (this is IrSimpleFunction && visibility === Visibilities.PROTECTED &&
+    if (this is IrSimpleFunction && visibility === DescriptorVisibilities.PROTECTED &&
         allOverridden().any { it.parentAsClass.isJvmInterface }
     ) {
         return Opcodes.ACC_PUBLIC
     }
 
-    if (!Visibilities.isPrivate(visibility)) {
+    if (!DescriptorVisibilities.isPrivate(visibility)) {
         return null
     }
 
@@ -298,7 +298,7 @@ fun IrDeclarationWithVisibility.isInlineOnlyPrivateInBytecode(): Boolean =
     (this is IrFunction && isInlineOnly()) || isPrivateInlineSuspend()
 
 private fun IrDeclarationWithVisibility.isPrivateInlineSuspend(): Boolean =
-    this is IrFunction && isSuspend && isInline && visibility == Visibilities.PRIVATE
+    this is IrFunction && isSuspend && isInline && visibility == DescriptorVisibilities.PRIVATE
 
 private fun IrDeclarationWithVisibility.isInlineOnlyPropertyAccessor(): Boolean {
     if (this !is IrSimpleFunction) return false
@@ -391,11 +391,11 @@ fun IrClass.getVisibilityAccessFlagForClass(): Int {
     if (kind == ClassKind.ENUM_ENTRY) {
         return AsmUtil.NO_FLAG_PACKAGE_PRIVATE
     }
-    return if (visibility === Visibilities.PUBLIC ||
-        visibility === Visibilities.PROTECTED ||
+    return if (visibility === DescriptorVisibilities.PUBLIC ||
+        visibility === DescriptorVisibilities.PROTECTED ||
         // TODO: should be package private, but for now Kotlin's reflection can't access members of such classes
-        visibility === Visibilities.LOCAL ||
-        visibility === Visibilities.INTERNAL
+        visibility === DescriptorVisibilities.LOCAL ||
+        visibility === DescriptorVisibilities.INTERNAL
     ) {
         Opcodes.ACC_PUBLIC
     } else AsmUtil.NO_FLAG_PACKAGE_PRIVATE
