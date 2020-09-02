@@ -27,6 +27,7 @@ import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.descriptors.annotations.AnnotationDescriptor
+import org.jetbrains.kotlin.idea.FrontendInternals
 import org.jetbrains.kotlin.idea.caches.lightClasses.IDELightClassContexts
 import org.jetbrains.kotlin.idea.caches.lightClasses.LazyLightClassDataHolder
 import org.jetbrains.kotlin.idea.project.languageVersionSettings
@@ -72,7 +73,9 @@ class IDELightClassGenerationSupport(project: Project) : LightClassGenerationSup
             CachedValueProvider.Result.create<ConcurrentMap<String, Boolean>>(map, PsiModificationTracker.MODIFICATION_COUNT)
         }
 
-        override val deprecationResolver: DeprecationResolver get() = resolutionFacade.getFrontendService(DeprecationResolver::class.java)
+        @OptIn(FrontendInternals::class)
+        override val deprecationResolver: DeprecationResolver
+            get() = resolutionFacade.getFrontendService(DeprecationResolver::class.java)
 
         override val typeMapper: KotlinTypeMapper by lazyPub {
             KotlinTypeMapper(
@@ -133,6 +136,7 @@ class IDELightClassGenerationSupport(project: Project) : LightClassGenerationSup
         )
     }
 
+    @OptIn(FrontendInternals::class)
     private fun KtElement.getDiagnosticsHolder() =
         getResolutionFacade().frontendService<LazyLightClassDataHolder.DiagnosticsHolder>()
 
