@@ -19,7 +19,9 @@ import com.intellij.psi.stubs.StringStubIndexExtension
 import com.intellij.util.containers.ContainerUtil
 import gnu.trove.THashSet
 import org.jetbrains.annotations.TestOnly
+import org.jetbrains.kotlin.asJava.finder.JavaElementFinder
 import org.jetbrains.kotlin.descriptors.CallableDescriptor
+import org.jetbrains.kotlin.fileClasses.javaFileFacadeFqName
 import org.jetbrains.kotlin.idea.caches.project.BinaryModuleInfo
 import org.jetbrains.kotlin.idea.caches.project.ScriptDependenciesInfo
 import org.jetbrains.kotlin.idea.caches.project.getBinaryLibrariesModuleInfos
@@ -72,10 +74,13 @@ object SourceNavigationHelper {
                 }
             }
 
-            NavigationKind.SOURCES_TO_CLASS_FILES -> getLibrarySourcesModuleInfos(
-                declaration.project,
-                vFile
-            ).map { it.binariesModuleInfo.binariesScope() }.union()
+            NavigationKind.SOURCES_TO_CLASS_FILES -> {
+                val res = JavaElementFinder.getInstance(containingFile.project).findClass(containingFile.javaFileFacadeFqName.asString(), declaration.resolveScope)
+                getLibrarySourcesModuleInfos(
+                    declaration.project,
+                    vFile
+                ).map { it.binariesModuleInfo.binariesScope() }.union()
+            }
         }
     }
 
@@ -217,9 +222,13 @@ object SourceNavigationHelper {
             else -> throw IllegalArgumentException("Neither function nor declaration: " + declaration::class.java.name)
         }
 
-        return scopes.flatMap { scope ->
+        val flatMap = scopes.flatMap { scope ->
             index.get(declaration.fqName!!.asString(), declaration.project, scope).sortedBy { it.isExpectDeclaration() }
         }
+        val allStubs = index.get(declaration.fqName!!.asString(), declaration.project, GlobalSearchScope.allScope(declaration.project))
+        val allStubFiles = allStubs.map { it.containingKtFile }
+        val mapOf = flatMap.map { it.containingKtFile }
+        return flatMap
     }
 
     private fun getInitialMemberCandidates(
