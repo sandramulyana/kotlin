@@ -21,6 +21,8 @@ import gnu.trove.THashSet
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.asJava.finder.JavaElementFinder
 import org.jetbrains.kotlin.descriptors.CallableDescriptor
+import org.jetbrains.kotlin.fileClasses.JvmMultifileClassPartInfo
+import org.jetbrains.kotlin.fileClasses.fileClassInfo
 import org.jetbrains.kotlin.fileClasses.javaFileFacadeFqName
 import org.jetbrains.kotlin.idea.caches.project.BinaryModuleInfo
 import org.jetbrains.kotlin.idea.caches.project.ScriptDependenciesInfo
@@ -57,9 +59,10 @@ object SourceNavigationHelper {
         val containingFile = declaration.containingKtFile
         val vFile = containingFile.virtualFile ?: return emptyList()
 
+        val project = declaration.project
         return when (navigationKind) {
             NavigationKind.CLASS_FILES_TO_SOURCES -> {
-                val binaryModuleInfos = getBinaryLibrariesModuleInfos(declaration.project, vFile)
+                val binaryModuleInfos = getBinaryLibrariesModuleInfos(project, vFile)
                 val primaryScope = binaryModuleInfos.mapNotNull { it.sourcesModuleInfo?.sourceScope() }.union()
                 val additionalScope = binaryModuleInfos.flatMap {
                     it.associatedCommonLibraries()
@@ -75,9 +78,19 @@ object SourceNavigationHelper {
             }
 
             NavigationKind.SOURCES_TO_CLASS_FILES -> {
-                val res = JavaElementFinder.getInstance(containingFile.project).findClass(containingFile.javaFileFacadeFqName.asString(), declaration.resolveScope)
+                if (containingFile.fileClassInfo is JvmMultifileClassPartInfo) {
+                    // if the asked element is multifile classs, it might be compiled into .kotlin_metadata and .class
+                    // we need to make sure to include .class, it assumes that all compiled parts are placed in the same jar
+                    val res = JavaElementFinder.getInstance(containingFile.project)
+                        .findClass(containingFile.javaFileFacadeFqName.asString(), declaration.resolveScope)
+                    if (res != null) {
+                        val union = getBinaryLibrariesModuleInfos(project, res.containingFile.virtualFile)
+                            .map { it.binariesScope() }.union()
+                        return union
+                    }
+                }
                 getLibrarySourcesModuleInfos(
-                    declaration.project,
+                    project,
                     vFile
                 ).map { it.binariesModuleInfo.binariesScope() }.union()
             }

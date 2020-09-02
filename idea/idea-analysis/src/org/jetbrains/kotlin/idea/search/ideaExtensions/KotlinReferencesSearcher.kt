@@ -23,6 +23,7 @@ import com.intellij.psi.impl.cache.CacheManager
 import com.intellij.psi.search.*
 import com.intellij.psi.search.searches.MethodReferencesSearch
 import com.intellij.psi.search.searches.ReferencesSearch
+import com.intellij.psi.util.MethodSignatureUtil
 import com.intellij.util.Processor
 import com.intellij.util.containers.nullize
 import org.jetbrains.kotlin.asJava.LightClassUtil
@@ -30,10 +31,16 @@ import org.jetbrains.kotlin.asJava.elements.KtLightField
 import org.jetbrains.kotlin.asJava.elements.KtLightMember
 import org.jetbrains.kotlin.asJava.elements.KtLightMethod
 import org.jetbrains.kotlin.asJava.elements.KtLightParameter
+import org.jetbrains.kotlin.asJava.finder.JavaElementFinder
 import org.jetbrains.kotlin.asJava.namedUnwrappedElement
 import org.jetbrains.kotlin.asJava.toLightClass
 import org.jetbrains.kotlin.asJava.toLightElements
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
+import org.jetbrains.kotlin.fileClasses.JvmFileClassUtil
+import org.jetbrains.kotlin.fileClasses.fileClassInfo
+import org.jetbrains.kotlin.fileClasses.javaFileFacadeFqName
+import org.jetbrains.kotlin.idea.decompiler.MetadataKtDecompiledFile
+import org.jetbrains.kotlin.idea.decompiler.navigation.SourceNavigationHelper
 import org.jetbrains.kotlin.idea.references.KtSimpleNameReference
 import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.idea.search.*
@@ -47,12 +54,16 @@ import org.jetbrains.kotlin.idea.stubindex.KotlinSourceFilterScope
 import org.jetbrains.kotlin.idea.util.application.runReadAction
 import org.jetbrains.kotlin.idea.util.expectedDeclarationIfAny
 import org.jetbrains.kotlin.idea.util.isExpectDeclaration
+import org.jetbrains.kotlin.library.metadata.KlibMetadataProtoBuf.fqName
+import org.jetbrains.kotlin.load.kotlin.MemberSignature
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.getQualifiedElementSelector
 import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.hasActualModifier
 import org.jetbrains.kotlin.psi.psiUtil.parents
+import org.jetbrains.kotlin.type.MapPsiToAsmDesc
 import java.util.*
+import javax.xml.bind.Element
 
 data class KotlinReferencesSearchOptions(
     val acceptCallableOverrides: Boolean = false,
@@ -181,7 +192,31 @@ class KotlinReferencesSearcher : QueryExecutorBase<PsiReference, ReferencesSearc
                 is KtParameter -> ({ ref: PsiReference -> !ref.isNamedArgumentReference()/* they are processed later*/ })
                 else -> ({ true })
             }
+            val containingFile = elementToSearch.containingFile
+            if (containingFile is KtFile) {
+                val project = elementToSearch.project
+                val fileClassInfo = containingFile.fileClassInfo
+                val info = JvmFileClassUtil.getFileClassInfoNoResolve(containingFile)
+                val originalFileDeclarations = containingFile.declarations
+                val sourceFileClassInfo = if (containingFile is MetadataKtDecompiledFile) {
+                    SourceNavigationHelper.getNavigationElement(elementToSearch as KtDeclaration).containingFile
+                } else null
+                val sourceFileClassInfo1 = if(sourceFileClassInfo is KtFile)
+                    sourceFileClassInfo.fileClassInfo
+                else null
+                val fqName = fileClassInfo.fileClassFqName
+                val jvmClass = JavaElementFinder.getInstance(project).findClasses(fqName.asString(), GlobalSearchScope.allScope(project))
+                    .toMutableList()
+                val methods = jvmClass.flatMap { it.allMethods.asList() }
+//                val desc = MapPsiToAsmDesc.methodDesc(elementToSearch as KtNamedDeclaration)
+//                val name = if (psiMethod.isConstructor) "<init>" else psiMethod.name
+//                val signature = MemberSignature.fromMethodNameAndDesc(name, desc)
 
+                for (cls in jvmClass) {
+                    val meth = null
+//                    val method = MethodSignatureUtil.findMethodBySignature(cls, elementToSearch,false)
+                }
+            }
             val resultProcessor = KotlinRequestResultProcessor(elementToSearch, filter = refFilter, options = kotlinOptions)
 
             val name = elementToSearch.name
@@ -193,7 +228,6 @@ class KotlinReferencesSearcher : QueryExecutorBase<PsiReference, ReferencesSearc
                     )
                 }
             }
-
 
             val classNameForCompanionObject = elementToSearch.getClassNameForCompanionObject()
             if (classNameForCompanionObject != null) {
@@ -266,7 +300,8 @@ class KotlinReferencesSearcher : QueryExecutorBase<PsiReference, ReferencesSearc
             )
         }
 
-        private fun searchLightElements(element: PsiElement) {
+        private fun searchLightElements(elementOriginal: PsiElement) {
+            val element = elementOriginal.navigationElement
             when (element) {
                 is KtClassOrObject -> {
                     processKtClassOrObject(element)

@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.asJava
 
+import com.intellij.openapi.project.Project
 import com.intellij.psi.*
 import com.intellij.psi.impl.java.stubs.PsiClassStub
 import com.intellij.psi.search.GlobalSearchScope
@@ -25,15 +26,18 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.asJava.classes.KtLightClass
 import org.jetbrains.kotlin.asJava.elements.*
 import org.jetbrains.kotlin.asJava.finder.JavaElementFinder
-import org.jetbrains.kotlin.fileClasses.JvmMultifileClassPartInfo
-import org.jetbrains.kotlin.fileClasses.fileClassInfo
 import org.jetbrains.kotlin.fileClasses.javaFileFacadeFqName
 import org.jetbrains.kotlin.load.java.JvmAbi
+import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.getNonStrictParentOfType
 import org.jetbrains.kotlin.utils.checkWithAttachment
 
 object LightClassUtil {
+    const val MULTI_FILE_CLASS_FACADE = 4 // kotlin/Metadata.kt:22
+    const val KOTLIN_METADATA_ANNOTATION = "kotlin.Metadata"
+    const val METADATA_KIND = "k"
+    const val METADATA_DATA1 = "d1"
 
     fun findClass(stub: StubElement<*>, predicate: (PsiClassStub<*>) -> Boolean): PsiClass? {
         if (stub is PsiClassStub<*> && predicate(stub)) {
@@ -130,11 +134,10 @@ object LightClassUtil {
         return getPsiMethodWrappers(declaration).firstOrNull()
     }
 
-    private fun getPsiMethodWrappers(declaration: KtDeclaration): Sequence<KtLightMethod> {
-        val methods = getWrappingClasses(declaration).flatMap { it.methods.asSequence() }
+    private fun getPsiMethodWrappers(declaration: KtDeclaration): Sequence<KtLightMethod> =
+        getWrappingClasses(declaration).flatMap { it.methods.asSequence() }
             .filterIsInstance<KtLightMethod>()
-        return methods.filter { it.kotlinOrigin === declaration }
-    }
+            .filter { it.kotlinOrigin === declaration }
 
     private fun getWrappingClass(declaration: KtDeclaration): PsiClass? {
         if (declaration is KtParameter) {
@@ -173,11 +176,30 @@ object LightClassUtil {
     private fun findFileFacade(ktFile: KtFile): PsiClass? {
         val fqName = ktFile.javaFileFacadeFqName
         val project = ktFile.project
-        val classesWithMatchingFqName =
-            JavaElementFinder.getInstance(project).findClasses(fqName.asString(), GlobalSearchScope.allScope(project))
+        val classesWithMatchingFqName = findPsiClass(project, fqName)
         return classesWithMatchingFqName.singleOrNull() ?: classesWithMatchingFqName.find {
             it.containingFile?.virtualFile == ktFile.virtualFile
         }
+    }
+
+    private fun findPsiClass(
+        project: Project,
+        fqName: FqName
+    ): Array<PsiClass> =
+        JavaElementFinder.getInstance(project).findClasses(fqName.asString(), GlobalSearchScope.allScope(project))
+
+    private fun findMultifileClassMetadata(psiClass: PsiClass): List<String>? {
+        val metadata = psiClass.getAnnotation(KOTLIN_METADATA_ANNOTATION)
+        if (metadata != null) {
+            val k = (metadata.findAttributeValue(METADATA_KIND) as? PsiLiteralValue)?.value as Int
+            if (k == MULTI_FILE_CLASS_FACADE) {
+                val d1 = (metadata.findAttributeValue(METADATA_DATA1) as? PsiArrayInitializerMemberValue)?.initializers?.mapNotNull {
+                    (it as? PsiLiteralValue)?.value as? String
+                } ?: emptyList()
+                return d1
+            }
+        }
+        return null
     }
 
     private fun getWrappingClasses(declaration: KtDeclaration): Sequence<PsiClass> {
@@ -185,6 +207,15 @@ object LightClassUtil {
         val wrapperClassOrigin = (wrapperClass as KtLightClass).kotlinOrigin
         if (wrapperClassOrigin is KtObjectDeclaration && wrapperClassOrigin.isCompanion() && wrapperClass.parent is PsiClass) {
             return sequenceOf(wrapperClass, wrapperClass.parent as PsiClass)
+        }
+        val parts = findMultifileClassMetadata(wrapperClass)
+        // for multipart classes we need to add parts to wrappingClasses, otherwise the declarations there wouldn't be found in stubs
+        if (parts != null) {
+            val classes = mutableListOf<PsiClass>(wrapperClass)
+            parts.forEach {
+                classes.addAll(findPsiClass(declaration.project, FqName.fromSegments(it.split("/"))).toList())
+            }
+            return classes.asSequence()
         }
         return sequenceOf(wrapperClass)
     }

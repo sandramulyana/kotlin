@@ -5,7 +5,7 @@
 
 package org.jetbrains.kotlin.idea.debugger
 
-import com.intellij.debugger.engine.DebugProcess
+import com.intellij.model.search.SearchParameters
 import com.intellij.openapi.application.ex.ApplicationManagerEx
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -48,8 +48,14 @@ class InlineCallableUsagesSearcher(val project: Project, val searchScope: Global
 
             val task = Runnable {
                 val scope = getScopeForInlineDeclarationUsages(declaration)
-                var kotlinReferenceSearchParam = KotlinReferencesSearchParameters(declaration, searchScope, kotlinOptions = KotlinReferencesSearchOptions())
-                var kotlinReferenceSearchParam1 = KotlinReferencesSearchParameters(declaration, searchScope, kotlinOptions = KotlinReferencesSearchOptions(acceptCallableOverrides = true))
+                val d = declaration
+                val originalElement = declaration.originalElement
+                val navigationElement = declaration.navigationElement
+                val referencesSearchParameters = ReferencesSearch.SearchParameters(d, searchScope, false)
+                var kotlinReferenceSearchParam = KotlinReferencesSearchParameters(d, searchScope, kotlinOptions = KotlinReferencesSearchOptions())
+                var kotlinReferenceSearchParam1 = KotlinReferencesSearchParameters(d, searchScope, kotlinOptions = KotlinReferencesSearchOptions(acceptCallableOverrides = true))
+                println("Zero search started")
+                val refsearch0 = ReferencesSearch.search(referencesSearchParameters).findAll()
                 println("First search started")
                 val refsearch = ReferencesSearch.search(kotlinReferenceSearchParam).findAll()
                 println("Second search started")

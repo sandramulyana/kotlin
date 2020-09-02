@@ -160,15 +160,12 @@ open class KtLightClassForDecompiledDeclaration(
     override fun getAllFields(): Array<PsiField> = PsiClassImplUtil.getAllFields(this)
 
     private val _methods: MutableList<PsiMethod> by lazyPub {
-        mutableListOf<PsiMethod>().also {
-            clsDelegate.methods.mapTo(it) { psiMethod ->
-                KtLightMethodForDecompiledDeclaration(
-                    funDelegate = psiMethod,
-                    funParent = this,
-                    lightMemberOrigin = LightMemberOriginForCompiledMethod(psiMethod, file)
-                )
-            }
-        }
+        clsDelegate.methods.map { psiMethod ->
+            KtLightMethodForDecompiledDeclaration(
+                funDelegate = psiMethod,
+                funParent = this,
+                lightMemberOrigin = LightMemberOriginForCompiledMethod(psiMethod, file)
+            ) }.toMutableList()
     }
 
     private val _fields: MutableList<PsiField> by lazyPub {
