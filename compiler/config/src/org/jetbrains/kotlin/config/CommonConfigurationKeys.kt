@@ -46,6 +46,9 @@ object CommonConfigurationKeys {
     val USE_FIR = CompilerConfigurationKey.create<Boolean>("front-end IR")
 
     @JvmField
+    val DISABLE_UL = CompilerConfigurationKey.create<Boolean>("ultralight classes")
+
+    @JvmField
     val EXPECT_ACTUAL_LINKER = CompilerConfigurationKey.create<Boolean>("Experimental expext/actual linker")
 
     @JvmField
