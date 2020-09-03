@@ -20,7 +20,7 @@ class IrTypeAliasImpl(
     override val symbol: IrTypeAliasSymbol,
     override val name: Name,
     override var visibility: Visibility,
-    override val expandedType: IrType,
+    override var expandedType: IrType,
     override val isActual: Boolean,
     override var origin: IrDeclarationOrigin
 ) : IrTypeAlias() {
