@@ -27,11 +27,12 @@ import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSymbol
 import org.jetbrains.kotlin.ir.types.IrDynamicType
 import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.types.IrTypeCheckerContextWithAdditionalAxioms
 import org.jetbrains.kotlin.ir.types.getClass
+import org.jetbrains.kotlin.ir.overrides.isOverridableBy
 import org.jetbrains.kotlin.ir.util.isReal
 import org.jetbrains.kotlin.ir.util.render
 import org.jetbrains.kotlin.resolve.OverridingUtil.OverrideCompatibilityInfo
-import org.jetbrains.kotlin.resolve.OverridingUtil.OverrideCompatibilityInfo.incompatible
 import org.jetbrains.kotlin.types.AbstractTypeChecker
 import org.jetbrains.kotlin.types.AbstractTypeCheckerContext
 
@@ -513,30 +514,7 @@ class IrOverridingUtil(
         superMember: IrOverridableMember,
         subMember: IrOverridableMember,
         // subClass: IrClass?
-    ): OverrideCompatibilityInfo {
-        return isOverridableBy(superMember, subMember/*, subClass*/, false)
-    }
-
-    private fun isOverridableBy(
-        superMember: IrOverridableMember,
-        subMember: IrOverridableMember,
-        // subClass: IrClass?, Would only be needed for external overridability conditions.
-        checkReturnType: Boolean
-    ): OverrideCompatibilityInfo {
-        val basicResult = isOverridableByWithoutExternalConditions(superMember, subMember, checkReturnType)
-        return if (basicResult.result == OverrideCompatibilityInfo.Result.OVERRIDABLE)
-            OverrideCompatibilityInfo.success()
-        else
-            basicResult
-        // The frontend goes into external overridability condition details here, but don't deal with them in IR (yet?).
-    }
-
-    private val IrOverridableMember.compiledValueParameters
-        get() = when (this) {
-            is IrSimpleFunction -> extensionReceiverParameter?.let { listOf(it) + valueParameters } ?: valueParameters
-            is IrProperty -> getter!!.extensionReceiverParameter?.let { listOf(it) } ?: emptyList()
-            else -> error("Unexpected declaration for compiledValueParameters: $this")
-        }
+    ) = isOverridableBy(irBuiltIns, superMember, subMember/*, subClass*/, checkReturnType = false)
 
     private val IrOverridableMember.returnType
         get() = when (this) {
@@ -551,121 +529,4 @@ class IrOverridingUtil(
             is IrProperty -> this.getter!!.typeParameters
             else -> error("Unexpected declaration for typeParameters: $this")
         }
-
-    private fun isOverridableByWithoutExternalConditions(
-        superMember: IrOverridableMember,
-        subMember: IrOverridableMember,
-        checkReturnType: Boolean
-    ): OverrideCompatibilityInfo {
-        val basicOverridability = getBasicOverridabilityProblem(superMember, subMember)
-        if (basicOverridability != null) return basicOverridability
-
-        val superValueParameters = superMember.compiledValueParameters
-        val subValueParameters = subMember.compiledValueParameters
-        val superTypeParameters = superMember.typeParameters
-        val subTypeParameters = subMember.typeParameters
-
-        if (superTypeParameters.size != subTypeParameters.size) {
-            /* TODO: do we need this in IR?
-            superValueParameters.forEachIndexed { index, superParameter ->
-                if (!AbstractTypeChecker.equalTypes(
-                        defaultTypeCheckerContext as AbstractTypeCheckerContext,
-                        superParameter.type,
-                        subValueParameters[index].type
-                    )
-                ) {
-                    return OverrideCompatibilityInfo.incompatible("Type parameter number mismatch")
-                }
-            }
-            return OverrideCompatibilityInfo.conflict("Type parameter number mismatch")
-            */
-
-            return incompatible("Type parameter number mismatch")
-        }
-
-        val typeCheckerContext =
-            IrTypeCheckerContextWithAdditionalAxioms(irBuiltIns, superTypeParameters, subTypeParameters)
-
-        /* TODO: check the bounds. See OverridingUtil.areTypeParametersEquivalent()
-        superTypeParameters.forEachIndexed { index, parameter ->
-            if (!AbstractTypeChecker.areTypeParametersEquivalent(
-                    typeCheckerContext as AbstractTypeCheckerContext,
-                    subTypeParameters[index].type,
-                    parameter.type
-                )
-            ) return OverrideCompatibilityInfo.incompatible("Type parameter bounds mismatch")
-        }
-        */
-
-        assert(superValueParameters.size == subValueParameters.size)
-
-        superValueParameters.forEachIndexed { index, parameter ->
-            if (!AbstractTypeChecker.equalTypes(
-                    typeCheckerContext as AbstractTypeCheckerContext,
-                    subValueParameters[index].type,
-                    parameter.type
-                )
-            ) return incompatible("Value parameter type mismatch")
-        }
-
-        if (superMember is IrSimpleFunction && subMember is IrSimpleFunction && superMember.isSuspend != subMember.isSuspend) {
-            return OverrideCompatibilityInfo.conflict("Incompatible suspendability")
-        }
-
-        if (checkReturnType) {
-            if (!AbstractTypeChecker.isSubtypeOf(
-                    typeCheckerContext as AbstractTypeCheckerContext,
-                    subMember.returnType,
-                    superMember.returnType
-                )
-            ) return OverrideCompatibilityInfo.conflict("Return type mismatch")
-        }
-        return OverrideCompatibilityInfo.success()
-    }
-
-    private fun getBasicOverridabilityProblem(
-        superMember: IrOverridableMember,
-        subMember: IrOverridableMember
-    ): OverrideCompatibilityInfo? {
-        if (superMember is IrSimpleFunction && subMember !is IrSimpleFunction ||
-            superMember is IrProperty && subMember !is IrProperty
-        ) {
-            return incompatible("Member kind mismatch")
-        }
-        require((superMember is IrSimpleFunction || superMember is IrProperty)) {
-            "This type of IrDeclaration cannot be checked for overridability: $superMember"
-        }
-
-        return if (superMember.name != subMember.name) {
-            incompatible("Name mismatch")
-        } else
-            checkReceiverAndParameterCount(superMember, subMember)
-    }
-
-    private fun checkReceiverAndParameterCount(
-        superMember: IrOverridableMember,
-        subMember: IrOverridableMember
-    ): OverrideCompatibilityInfo? {
-        return when (superMember) {
-            is IrSimpleFunction -> {
-                require(subMember is IrSimpleFunction)
-                when {
-                    superMember.extensionReceiverParameter == null != (subMember.extensionReceiverParameter == null) -> {
-                        incompatible("Receiver presence mismatch")
-                    }
-                    superMember.valueParameters.size != subMember.valueParameters.size -> {
-                        incompatible("Value parameter number mismatch")
-                    }
-                    else -> null
-                }
-            }
-            is IrProperty -> {
-                require(subMember is IrProperty)
-                if (superMember.getter?.extensionReceiverParameter == null != (subMember.getter?.extensionReceiverParameter == null)) {
-                    incompatible("Receiver presence mismatch")
-                } else null
-            }
-            else -> error("Unxpected declaration for value parameter check: $this")
-        }
-    }
 }
