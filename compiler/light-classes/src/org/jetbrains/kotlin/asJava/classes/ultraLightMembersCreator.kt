@@ -428,8 +428,9 @@ internal class UltraLightMembersCreator(
             if (declaration is KtProperty && declaration.hasDelegate())
                 return true
 
-            if (accessor?.hasModifier(PRIVATE_KEYWORD) == true || accessor?.hasAnnotation(JVM_SYNTHETIC_ANNOTATION_FQ_NAME) == true)
-                return false
+            if (accessor?.run { hasModifier(PRIVATE_KEYWORD) && bodyBlockExpression == null } == true) return false
+
+            if (accessor?.hasAnnotation(JVM_SYNTHETIC_ANNOTATION_FQ_NAME) == true) return false
 
             if (isPrivate && accessor?.hasBody() != true) return false
 
