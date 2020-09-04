@@ -13204,6 +13204,11 @@ public class LightAnalysisModeTestGenerated extends AbstractLightAnalysisModeTes
                 KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/codegen/box/functions/localFunctions"), Pattern.compile("^(.+)\\.kt$"), null, TargetBackend.JVM, true);
             }
 
+            @TestMetadata("callBetweenLocalFunctions.kt")
+            public void testCallBetweenLocalFunctions() throws Exception {
+                runTest("compiler/testData/codegen/box/functions/localFunctions/callBetweenLocalFunctions.kt");
+            }
+
             @TestMetadata("callInlineLocalInLambda.kt")
             public void testCallInlineLocalInLambda() throws Exception {
                 runTest("compiler/testData/codegen/box/functions/localFunctions/callInlineLocalInLambda.kt");
