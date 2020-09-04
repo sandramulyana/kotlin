@@ -437,7 +437,7 @@ abstract class AbstractSuspendFunctionsLowering<C : CommonBackendContext>(val co
                 coroutineClass.superTypes += coroutineBaseClass.defaultType
             }
 
-            coroutineClass.addFakeOverridesViaIncorrectHeuristic(implementedMembers)
+            coroutineClass.addFakeOverrides(context.irBuiltIns, implementedMembers)
 
             // TODO: find out whether Kotlin/Native needs this call
             initializeStateMachine(listOf(coroutineConstructor), coroutineClassThis)
